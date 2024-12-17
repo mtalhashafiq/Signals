@@ -1,0 +1,120 @@
+import ccxt
+import pandas as pd
+import pandas_ta as ta
+import configparser
+import time
+import matplotlib.pyplot as plt
+
+# 1. Read API credentials from config file
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+api_key = '2K43KfmIgF63h5HcZTol0aXgdPVPeecOJX0u2AVOcrvwnA6VzrYPb1JTGOvYd9yu'
+api_secret = 'amj2MYOqDLiXCjjivOp2kVXKvnseifwMa3LrNcAd2WP4Dj3Cj8XiFUNtJzNpAJ5C'
+
+# 2. Connect to Binance account using CCXT
+exchange = ccxt.binance({
+    'apiKey': api_key,
+    'secret': api_secret,
+    'enableRateLimit': True
+})
+
+symbol = 'SOL/USDT'
+timeframe = '1m'
+
+# 3. Fetch market data (OHLCV)
+def fetch_ohlcv(symbol, timeframe='1m', limit=500):
+    print(f"Fetching data for {symbol} on {timeframe} timeframe")
+    data = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+    df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    return df
+
+# 4. Apply Technical Indicators
+def apply_indicators(df):
+    print("Applying indicators...")
+    
+    df['EMA_50'] = ta.ema(df['close'], length=50)
+    df['EMA_200'] = ta.ema(df['close'], length=200)
+    df['RSI'] = ta.rsi(df['close'], length=14)
+    bbands = ta.bbands(df['close'], length=20, std=2)
+    df['upper_band'], df['middle_band'], df['lower_band'] = bbands['BBU_20_2.0'], bbands['BBM_20_2.0'], bbands['BBL_20_2.0']
+    macd = ta.macd(df['close'], fast=12, slow=26, signal=9)
+    df['MACD'], df['MACD_signal'] = macd['MACD_12_26_9'], macd['MACDs_12_26_9']
+    df['QQE'] = ta.ema(df['RSI'], length=5)
+    stochrsi = ta.stochrsi(df['close'], length=14)
+    df['StochRSI_k'], df['StochRSI_d'] = stochrsi['STOCHRSIk_14_14_3_3'], stochrsi['STOCHRSId_14_14_3_3']
+    
+    # Log indicator values
+    print(df[['timestamp', 'close', 'EMA_50', 'EMA_200', 'RSI', 'upper_band', 'lower_band', 'MACD', 'QQE']].tail())
+    
+    return df
+
+# 5. Buy and Sell Logic
+def check_buy_sell_signals(df):
+    print("Checking buy/sell signals...")
+    buy_signal = df['EMA_50'].iloc[-1] > df['EMA_200'].iloc[-1] and df['RSI'].iloc[-1] < 30 and df['close'].iloc[-1] < df['lower_band'].iloc[-1]
+    sell_signal = df['EMA_50'].iloc[-1] < df['EMA_200'].iloc[-1] and df['RSI'].iloc[-1] > 70 and df['close'].iloc[-1] > df['upper_band'].iloc[-1]
+
+    if buy_signal:
+        print("Buy Signal detected!")
+    if sell_signal:
+        print("Sell Signal detected!")
+    
+    return buy_signal, sell_signal
+
+# 6. Place buy/sell orders
+def place_order(symbol, order_type, usdt_amount):
+    try:
+        if order_type == 'buy':
+            print(f"Placing buy order for {usdt_amount} USDT worth of {symbol}")
+            order = exchange.create_market_buy_order(symbol, usdt_amount / exchange.fetch_ticker(symbol)['close'])
+        elif order_type == 'sell':
+            print(f"Placing sell order for {usdt_amount} USDT worth of {symbol}")
+            order = exchange.create_market_sell_order(symbol, usdt_amount / exchange.fetch_ticker(symbol)['close'])
+        print(f"Order executed: {order}")
+    except Exception as e:
+        print(f"Error executing order: {e}")
+
+# 7. Plotting function
+def plot_data(df):
+    plt.figure(figsize=(14, 7))
+    plt.plot(df['timestamp'], df['close'], label='Close Price', color='blue')
+    plt.plot(df['timestamp'], df['EMA_50'], label='EMA 50', color='orange')
+    plt.plot(df['timestamp'], df['EMA_200'], label='EMA 200', color='red')
+    plt.fill_between(df['timestamp'], df['lower_band'], df['upper_band'], color='lightgrey', alpha=0.5, label='Bollinger Bands')
+    plt.title('SOL/USDT Price and Indicators')
+    plt.xlabel('Time')
+    plt.ylabel('Price')
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+# 8. Main trading loop
+def main_trading_loop():
+    print("Starting trading loop...")
+    while True:
+        try:
+            df = fetch_ohlcv(symbol, timeframe)
+            df = apply_indicators(df)
+            buy_signal, sell_signal = check_buy_sell_signals(df)
+            
+            if buy_signal:
+                place_order(symbol, 'buy', 2)  # Buy 2 USDT worth of SOL/USDT
+            elif sell_signal:
+                place_order(symbol, 'sell', 2)  # Sell 2 USDT worth of SOL/USDT
+            
+            # Plot the latest data
+            plot_data(df)
+
+            print("Sleeping for 1 minute...")
+            time.sleep(60)
+        
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            time.sleep(60)
+
+# 9. Run the bot
+if __name__ == "__main__":
+    main_trading_loop()

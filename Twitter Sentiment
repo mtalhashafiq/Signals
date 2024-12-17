@@ -1,0 +1,79 @@
+import tweepy  # Library for interacting with the Twitter API
+from textblob import TextBlob  # Library for sentiment analysis
+from datetime import datetime, timedelta  # Library for working with dates and times
+
+# Twitter API credentials - Replace these with your actual credentials
+API_KEY = 'a84wrrMRERgsMLRdwWuXnf9ah'
+API_SECRET_KEY = 'xK7kDf5wzlpZC9aZrKzAKgmmWp9EzFZsZe2wx5sbMIJWDo0bzA'
+ACCESS_TOKEN = '1868372599077842944-Rom9qYeZyDCC7ktA1ocngN62FjZuKS'
+ACCESS_TOKEN_SECRET = '1868372599077842944-Rom9qYeZyDCC7ktA1ocngN62FjZuKS'
+
+# Authenticate to Twitter
+auth = tweepy.OAuthHandler(API_KEY, API_SECRET_KEY)
+auth.set_access_token(ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
+api = tweepy.API(auth, wait_on_rate_limit=True)
+
+def fetch_tweets(keyword, start_date, max_tweets=50):
+    """
+    Fetch tweets based on a specific keyword and start date.
+    :param keyword: The cryptocurrency or keyword to search for in tweets.
+    :param start_date: The starting date for fetching tweets (YYYY-MM-DD format).
+    :param max_tweets: The maximum number of tweets to fetch per request.
+    :return: A list of tweet texts.
+    """
+    tweets = []
+    query = f"{keyword} since:{start_date}"
+
+    try:
+        for tweet in tweepy.Cursor(
+            api.search_tweets,
+            q=query,
+            lang="en",
+            tweet_mode="extended"
+        ).items(max_tweets):
+            tweets.append(tweet.full_text)
+    except tweepy.TweepyException as e:
+        print(f"Error fetching tweets: {e}")
+    return tweets
+
+def analyze_sentiment(tweets):
+    """
+    Analyze the sentiment of each tweet and classify as positive, negative, or neutral.
+    :param tweets: A list of tweet texts.
+    :return: A dictionary with counts of positive, negative, and neutral tweets.
+    """
+    sentiments = {"positive": 0, "negative": 0, "neutral": 0}
+    for tweet in tweets:
+        analysis = TextBlob(tweet)
+        if analysis.sentiment.polarity > 0:
+            sentiments["positive"] += 1
+        elif analysis.sentiment.polarity < 0:
+            sentiments["negative"] += 1
+        else:
+            sentiments["neutral"] += 1
+    return sentiments
+
+def main():
+    """
+    Main function to execute the program.
+    """
+    keyword = "Bitcoin"
+    start_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    
+    print(f"Fetching tweets for '{keyword}' since {start_date}...")
+    tweets = fetch_tweets(keyword, start_date, max_tweets=50)
+
+    if not tweets:
+        print("No tweets fetched.")
+        return
+
+    sentiments = analyze_sentiment(tweets)
+    total = sum(sentiments.values())
+
+    print("\nSentiment Analysis:")
+    print(f"Positive: {sentiments['positive']} ({(sentiments['positive']/total)*100:.2f}%)")
+    print(f"Negative: {sentiments['negative']} ({(sentiments['negative']/total)*100:.2f}%)")
+    print(f"Neutral: {sentiments['neutral']} ({(sentiments['neutral']/total)*100:.2f}%)")
+
+if __name__ == "__main__":
+    main()

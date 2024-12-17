@@ -1,0 +1,28 @@
+
+from binance.client import Client  # Import the Binance client to interact with the Binance API
+import time  # Import the time module to manage sleep intervals
+import pandas as pd  # Import pandas for data manipulation and analysis
+import numpy as np  # Import NumPy for numerical operations
+from binance.client import Client  # Import the Binance client to interact with the Binance API
+from binance.enums import *  # Import Binance enums for trading commands and options
+import ta  # Import the TA library for technical analysis indicators
+# Your Binance API Key and Secret
+
+api_key = '2K43KfmIgF63h5HcZTol0aXgdPVPeecOJX0u2AVOcrvwnA6VzrYPb1JTGOvYd9yu'
+api_secret = 'amj2MYOqDLiXCjjivOp2kVXKvnseifwMa3LrNcAd2WP4Dj3Cj8XiFUNtJzNpAJ5C'
+
+# Create a client instance to interact with the Binance API
+client = Client(api_key, api_secret)
+account_info = client.get_account()
+balances = account_info['balances']
+
+# Print non-zero balances
+for balance in balances:
+    asset = balance['asset']
+    free = float(balance['free'])
+    locked = float(balance['locked'])
+    
+    if free > 0 or locked > 0:
+        print(f"Asset: {asset}, Free: {free}, Locked: {locked}")
+
+
